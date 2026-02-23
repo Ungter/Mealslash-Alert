@@ -1,0 +1,73 @@
+name: Mealslash Status Monitor
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure status file exists
+        run: |
+          if [ ! -f status.txt ]; then
+            echo "closed" > status.txt
+          fi
+
+      - name: Check Mealslash status and send Discord alerts
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TARGET_URL: https://www.mealslash.com/order/food-delivery
+        run: |
+          set -euo pipefail
+
+          page_content="$(curl -L -s "$TARGET_URL")"
+
+          if echo "$page_content" | grep -q "We're currently closed"; then
+            scraped_status="closed"
+          else
+            scraped_status="open"
+          fi
+
+          current_status="$(tr -d '\r\n' < status.txt | tr '[:upper:]' '[:lower:]')"
+          if [ "$current_status" != "open" ] && [ "$current_status" != "closed" ]; then
+            current_status="closed"
+          fi
+
+          if [ "$scraped_status" = "$current_status" ]; then
+            echo "No status change. Current status: $current_status"
+            exit 0
+          fi
+
+          if [ "$scraped_status" = "open" ]; then
+            message="Mealslash is now open!"
+          else
+            message="Mealslash is now closed."
+          fi
+
+          if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+            payload=$(printf '{"content":"%s"}' "$message")
+            curl -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL"
+          else
+            echo "DISCORD_WEBHOOK_URL is not set; skipping Discord notification."
+          fi
+
+          echo "$scraped_status" > status.txt
+
+      - name: Commit updated status
+        run: |
+          if git diff --quiet -- status.txt; then
+            echo "No status.txt changes to commit."
+            exit 0
+          fi
+
+          git add status.txt
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore: update mealslash status"
+          git push
