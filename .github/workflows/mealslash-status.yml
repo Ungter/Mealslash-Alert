@@ -51,9 +51,9 @@ jobs:
           fi
 
           if [ "$scraped_status" = "open" ]; then
-            message="@chuds Mealslash is now open!"
+            message="@Chuds Mealslash is now open!"
           else
-            message="@chuds Mealslash is now closed."
+            message="@Chuds Mealslash is now closed."
           fi
 
           payload=$(printf '{"content":"%s"}' "$message")
