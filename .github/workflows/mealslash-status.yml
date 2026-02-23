@@ -23,7 +23,11 @@ jobs:
 
       - name: Check Mealslash status and send Discord alerts
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL_1: ${{ secrets.DISCORD_WEBHOOK_URL_1 }}
+          DISCORD_WEBHOOK_URL_2: ${{ secrets.DISCORD_WEBHOOK_URL_2 }}
+          DISCORD_WEBHOOK_URL_3: ${{ secrets.DISCORD_WEBHOOK_URL_3 }}
+          DISCORD_WEBHOOK_URL_4: ${{ secrets.DISCORD_WEBHOOK_URL_4 }}
+          DISCORD_WEBHOOK_URL_5: ${{ secrets.DISCORD_WEBHOOK_URL_5 }}
           TARGET_URL: https://www.mealslash.com/order/food-delivery
         run: |
           set -euo pipefail
@@ -52,11 +56,24 @@ jobs:
             message="Mealslash is now closed."
           fi
 
-          if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
-            payload=$(printf '{"content":"%s"}' "$message")
-            curl -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL"
-          else
-            echo "DISCORD_WEBHOOK_URL is not set; skipping Discord notification."
+          payload=$(printf '{"content":"%s"}' "$message")
+          sent_any=false
+
+          for webhook in \
+            "${DISCORD_WEBHOOK_URL_1:-}" \
+            "${DISCORD_WEBHOOK_URL_2:-}" \
+            "${DISCORD_WEBHOOK_URL_3:-}" \
+            "${DISCORD_WEBHOOK_URL_4:-}" \
+            "${DISCORD_WEBHOOK_URL_5:-}"
+          do
+            if [ -n "$webhook" ]; then
+              curl -H "Content-Type: application/json" -d "$payload" "$webhook"
+              sent_any=true
+            fi
+          done
+
+          if [ "$sent_any" = false ]; then
+            echo "No Discord webhook URLs configured; skipping notification."
           fi
 
           echo "$scraped_status" > status.txt
