@@ -31,6 +31,9 @@ jobs:
           npm init -y >/dev/null 2>&1
           npm install playwright >/dev/null 2>&1
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       - name: Check Mealslash status and send Discord alerts
         env:
           DISCORD_WEBHOOK_URL_1: ${{ secrets.DISCORD_WEBHOOK_URL_1 }}
