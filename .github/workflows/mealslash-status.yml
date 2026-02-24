@@ -2,7 +2,7 @@ name: Mealslash Status Monitor
 
 on:
   repository_dispatch:
-    types: [status-check]
+    types: [check-cron-jobs]
   workflow_dispatch:
 
 concurrency:
