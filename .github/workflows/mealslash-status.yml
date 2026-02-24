@@ -26,6 +26,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install Playwright
         run: |
           npm init -y >/dev/null 2>&1
