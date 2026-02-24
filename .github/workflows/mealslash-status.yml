@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          rendered_text="$(TARGET_URL="$TARGET_URL" node -e "const { chromium } = require('playwright'); (async () => { const browser = await chromium.launch({headless: true}); const page = await browser.newPage(); await page.goto(process.env.TARGET_URL, {waitUntil: 'networkidle', timeout: 60000}); await page.waitForTimeout(3000); const text = await page.locator('body').innerText(); console.log(text); await browser.close(); })().catch((e)=>{ console.error(e); process.exit(1); });")"
+          rendered_text="$(TARGET_URL="$TARGET_URL" node -e "const { chromium } = require('playwright'); (async () => { const browser = await chromium.launch({headless: true}); const page = await browser.newPage(); await page.goto(process.env.TARGET_URL, {waitUntil: 'networkidle', timeout: 60000}); await page.waitForTimeout(10000); const text = await page.locator('body').innerText(); console.log(text); await browser.close(); })().catch((e)=>{ console.error(e); process.exit(1); });")"
 
           if echo "$rendered_text" | grep -Eiq "we('?|’)?re currently closed"; then
             scraped_status="closed"
