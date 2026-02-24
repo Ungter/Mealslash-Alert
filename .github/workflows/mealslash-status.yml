@@ -32,9 +32,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          page_content="$(curl -L -s "$TARGET_URL")"
+          page_content="$(curl -L -s -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" "$TARGET_URL")"
+          page_text="$(echo "$page_content" | tr -d '\r' | tr '\n' ' ' | tr -s ' ')"
 
-          if echo "$page_content" | grep -q "We're currently closed"; then
+          if echo "$page_text" | grep -Eiq "we('?|&rsquo;|&#39;)?re currently closed"; then
             scraped_status="closed"
           else
             scraped_status="open"
