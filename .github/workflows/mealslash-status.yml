@@ -1,8 +1,8 @@
 name: Mealslash Status Monitor
 
 on:
-  schedule:
-    - cron: '*/23 * * * *'
+  repository_dispatch:
+    types: [status-check]
   workflow_dispatch:
 
 jobs:
