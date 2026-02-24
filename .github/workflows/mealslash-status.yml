@@ -21,6 +21,16 @@ jobs:
             echo "closed" > status.txt
           fi
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright >/dev/null 2>&1
+
       - name: Check Mealslash status and send Discord alerts
         env:
           DISCORD_WEBHOOK_URL_1: ${{ secrets.DISCORD_WEBHOOK_URL_1 }}
@@ -32,10 +42,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          page_content="$(curl -L -s -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" "$TARGET_URL")"
-          page_text="$(echo "$page_content" | tr -d '\r' | tr '\n' ' ' | tr -s ' ')"
+          rendered_text="$(TARGET_URL="$TARGET_URL" node -e "const { chromium } = require('playwright'); (async () => { const browser = await chromium.launch({headless: true}); const page = await browser.newPage(); await page.goto(process.env.TARGET_URL, {waitUntil: 'networkidle', timeout: 60000}); await page.waitForTimeout(3000); const text = await page.locator('body').innerText(); console.log(text); await browser.close(); })().catch((e)=>{ console.error(e); process.exit(1); });")"
 
-          if echo "$page_text" | grep -Eiq "we('?|&rsquo;|&#39;)?re currently closed"; then
+          if echo "$rendered_text" | grep -Eiq "we('?|’)?re currently closed"; then
             scraped_status="closed"
           else
             scraped_status="open"
