@@ -25,27 +25,6 @@ jobs:
             echo "closed" > status.txt
           fi
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install Playwright
-        run: |
-          npm init -y >/dev/null 2>&1
-          npm install playwright >/dev/null 2>&1
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
       - name: Check Mealslash status and send Discord alerts
         env:
           DISCORD_WEBHOOK_URL_1: ${{ secrets.DISCORD_WEBHOOK_URL_1 }}
@@ -53,81 +32,16 @@ jobs:
           DISCORD_WEBHOOK_URL_3: ${{ secrets.DISCORD_WEBHOOK_URL_3 }}
           DISCORD_WEBHOOK_URL_4: ${{ secrets.DISCORD_WEBHOOK_URL_4 }}
           DISCORD_WEBHOOK_URL_5: ${{ secrets.DISCORD_WEBHOOK_URL_5 }}
-          TARGET_URL: https://www.mealslash.com/order/food-delivery
+          STATUS_URL: https://www.mealslash.com/api/service-status
         run: |
           set -euo pipefail
 
-          cat > scrape.js << 'SCRIPT'
-          const { chromium } = require('playwright');
-
-          const MAX_RETRIES = 4;
-          const BASE_DELAY_MS = 5000;
-
-          async function sleep(ms) {
-            return new Promise(r => setTimeout(r, ms));
-          }
-
-          (async () => {
-            const browser = await chromium.launch({
-              headless: true,
-              args: [
-                '--disable-blink-features=AutomationControlled',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--no-sandbox',
-              ],
-            });
-
-            const context = await browser.newContext({
-              userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              viewport: { width: 1920, height: 1080 },
-              locale: 'en-US',
-              timezoneId: 'America/New_York',
-            });
-
-            await context.addInitScript(() => {
-              Object.defineProperty(navigator, 'webdriver', { get: () => false });
-              Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-              Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-            });
-
-            const page = await context.newPage();
-
-            let lastError;
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-              try {
-                console.error(`Attempt ${attempt}/${MAX_RETRIES}...`);
-                await page.goto(process.env.TARGET_URL, {
-                  waitUntil: 'domcontentloaded',
-                  timeout: 60000,
-                });
-                await page.waitForTimeout(5000);
-                const text = await page.locator('body').innerText();
-                console.log(text);
-                await browser.close();
-                process.exit(0);
-              } catch (e) {
-                lastError = e;
-                console.error(`Attempt ${attempt} failed: ${e.message}`);
-                if (attempt < MAX_RETRIES) {
-                  const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1) + Math.random() * 3000;
-                  console.error(`Retrying in ${Math.round(delay / 1000)}s...`);
-                  await sleep(delay);
-                }
-              }
-            }
-
-            await browser.close();
-            console.error('All attempts failed:', lastError?.message);
-            process.exit(1);
-          })();
-          SCRIPT
-
-          rendered_text="$(node scrape.js)"
-
-          if echo "$rendered_text" | grep -Eiq "we('?|’)?re currently closed"; then
-            scraped_status="closed"
-          else
-            scraped_status="open"
+          if ! checked_status="$(
+            curl --fail --silent --show-error --retry 3 --max-time 15 "$STATUS_URL" |
+              jq -ers 'select(length == 1) | .[0].USA.DoorDash.status | select(. == "open" or . == "closed")'
+          )"; then
+            echo "::error::Could not verify Mealslash status for USA DoorDash."
+            exit 1
           fi
 
           current_status="$(tr -d '\r\n' < status.txt | tr '[:upper:]' '[:lower:]')"
@@ -135,12 +49,12 @@ jobs:
             current_status="closed"
           fi
 
-          if [ "$scraped_status" = "$current_status" ]; then
+          if [ "$checked_status" = "$current_status" ]; then
             echo "No status change. Current status: $current_status"
             exit 0
           fi
 
-          if [ "$scraped_status" = "open" ]; then
+          if [ "$checked_status" = "open" ]; then
             message="<@&1475611796219101404> Mealslash is now open!"
           else
             message="<@&1475611796219101404> Mealslash is now closed."
@@ -166,7 +80,7 @@ jobs:
             echo "No Discord webhook URLs configured; skipping notification."
           fi
 
-          echo "$scraped_status" > status.txt
+          echo "$checked_status" > status.txt
 
       - name: Commit updated status
         run: |
